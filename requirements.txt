@@ -1,0 +1,14 @@
+torch>=1.9.0
+torchvision>=0.10.0
+transformers>=4.11.0
+earthengine-api>=0.1.270
+geemap>=0.8.12
+pandas>=1.3.0
+numpy>=1.19.5
+matplotlib>=3.4.3
+Pillow>=8.3.1
+scikit-learn>=0.24.2
+h5py>=3.3.0
+netCDF4>=1.5.7
+requests>=2.26.0
+tqdm>=4.62.2 
