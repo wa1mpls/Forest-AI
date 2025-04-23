@@ -1,34 +1,93 @@
-import torch
+import tensorflow as tf
 import numpy as np
-from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from sklearn.metrics import r2_score, mean_squared_error, mean_absolute_error
 
-def calculate_metrics(y_true, y_pred):
-    """Calculate various regression metrics"""
+def rmse(y_true, y_pred):
+    """
+    Root Mean Squared Error
+    
+    Args:
+        y_true (tensor): True values
+        y_pred (tensor): Predicted values
+        
+    Returns:
+        tensor: RMSE value
+    """
+    return tf.sqrt(tf.reduce_mean(tf.square(y_true - y_pred)))
+
+def mae(y_true, y_pred):
+    """
+    Mean Absolute Error
+    
+    Args:
+        y_true (tensor): True values
+        y_pred (tensor): Predicted values
+        
+    Returns:
+        tensor: MAE value
+    """
+    return tf.reduce_mean(tf.abs(y_true - y_pred))
+
+def r2_score_tf(y_true, y_pred):
+    """
+    R-squared score
+    
+    Args:
+        y_true (tensor): True values
+        y_pred (tensor): Predicted values
+        
+    Returns:
+        tensor: R2 score
+    """
+    ss_res = tf.reduce_sum(tf.square(y_true - y_pred))
+    ss_tot = tf.reduce_sum(tf.square(y_true - tf.reduce_mean(y_true)))
+    return 1 - ss_res / (ss_tot + tf.keras.backend.epsilon())
+
+def bias(y_true, y_pred):
+    """
+    Bias
+    
+    Args:
+        y_true (tensor): True values
+        y_pred (tensor): Predicted values
+        
+    Returns:
+        tensor: Bias value
+    """
+    return tf.reduce_mean(y_pred - y_true)
+
+def evaluate_model(y_true, y_pred):
+    """
+    Evaluate model performance with multiple metrics
+    
+    Args:
+        y_true (array): True values
+        y_pred (array): Predicted values
+        
+    Returns:
+        dict: Dictionary of metric values
+    """
     metrics = {
-        'mae': mean_absolute_error(y_true, y_pred),
-        'rmse': np.sqrt(mean_squared_error(y_true, y_pred)),
-        'r2': r2_score(y_true, y_pred)
+        'RMSE': np.sqrt(mean_squared_error(y_true, y_pred)),
+        'MAE': mean_absolute_error(y_true, y_pred),
+        'R2': r2_score(y_true, y_pred),
+        'Bias': np.mean(y_pred - y_true)
     }
+    
     return metrics
 
-def evaluate_model(model, dataloader, device):
-    """Evaluate model on a dataloader"""
-    model.eval()
-    all_preds = []
-    all_labels = []
+def print_metrics(metrics):
+    """
+    Print evaluation metrics
     
-    with torch.no_grad():
-        for images, labels in dataloader:
-            images, labels = images.to(device), labels.to(device)
-            outputs = model(images)
-            
-            all_preds.append(outputs.cpu().numpy())
-            all_labels.append(labels.cpu().numpy())
-    
-    all_preds = np.vstack(all_preds)
-    all_labels = np.vstack(all_labels)
-    
-    return calculate_metrics(all_labels, all_preds)
+    Args:
+        metrics (dict): Dictionary of metric values
+    """
+    print("\nModel Evaluation Metrics:")
+    print("-" * 30)
+    for metric, value in metrics.items():
+        print(f"{metric}: {value:.4f}")
+    print("-" * 30)
 
 class TotalLoss(nn.Module):
     def __init__(self):

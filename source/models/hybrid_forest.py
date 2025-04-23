@@ -1,72 +1,112 @@
-import torch
-import torch.nn as nn
-from transformers import ViTModel
-from .spectral_attention import SpectralAttention
-from .enhanced_features import EnhancedFeatures
-from ..config import MODEL_CONFIG
+import tensorflow as tf
+from tensorflow.keras import layers, Model
 
-class HybridForestModel(nn.Module):
-    def __init__(self, num_outputs=None):
-        super().__init__()
-        if num_outputs is None:
-            num_outputs = MODEL_CONFIG['num_outputs']
+class HybridForestModel(Model):
+    def __init__(self, input_shape, gedi_features, num_classes):
+        """
+        Initialize hybrid forest model
         
-        # CNN for low-level features
-        self.cnn = nn.Sequential(
-            nn.Conv2d(3, 64, 3, padding=1),
-            nn.BatchNorm2d(64),
-            nn.ReLU(),
-            nn.MaxPool2d(2),
-            nn.Conv2d(64, 128, 3, padding=1),
-            nn.BatchNorm2d(128),
-            nn.ReLU(),
-            nn.MaxPool2d(2)
-        )
+        Args:
+            input_shape (tuple): Shape of input images (height, width, channels)
+            gedi_features (int): Number of GEDI features
+            num_classes (int): Number of output classes
+        """
+        super(HybridForestModel, self).__init__()
         
-        # ViT for long-range interactions
-        self.vit = ViTModel.from_pretrained("google/vit-base-patch16-224")
+        # Image processing branch (CNN)
+        self.image_branch = self._build_image_branch(input_shape)
         
-        # Spectral attention
-        self.spectral_attention = SpectralAttention(num_bands=7)  # 3 RGB + NDVI + EVI + NDWI
+        # GEDI features branch (MLP)
+        self.gedi_branch = self._build_gedi_branch(gedi_features)
         
-        # Enhanced features
-        self.enhanced_features = EnhancedFeatures()
+        # Combined processing
+        self.combined_dense = layers.Dense(128, activation='relu')
+        self.output_layer = layers.Dense(num_classes)
         
-        # Fusion layers
-        self.fusion = nn.Sequential(
-            nn.Linear(768 + 128*56*56, 512),
-            nn.BatchNorm1d(512),
-            nn.ReLU(),
-            nn.Dropout(0.3)
-        )
+    def _build_image_branch(self, input_shape):
+        """
+        Build CNN branch for image processing
         
-        # Regressor
-        self.regressor = nn.Sequential(
-            nn.Linear(512, 256),
-            nn.BatchNorm1d(256),
-            nn.ReLU(),
-            nn.Dropout(0.2),
-            nn.Linear(256, num_outputs)
-        )
+        Args:
+            input_shape (tuple): Shape of input images
+            
+        Returns:
+            Model: CNN model
+        """
+        inputs = layers.Input(shape=input_shape)
+        
+        # Convolutional layers
+        x = layers.Conv2D(32, 3, activation='relu', padding='same')(inputs)
+        x = layers.MaxPooling2D(2)(x)
+        x = layers.Conv2D(64, 3, activation='relu', padding='same')(x)
+        x = layers.MaxPooling2D(2)(x)
+        x = layers.Conv2D(128, 3, activation='relu', padding='same')(x)
+        x = layers.MaxPooling2D(2)(x)
+        
+        # Flatten and dense layers
+        x = layers.Flatten()(x)
+        x = layers.Dense(256, activation='relu')(x)
+        x = layers.Dropout(0.5)(x)
+        
+        return Model(inputs, x)
     
-    def forward(self, x):
-        # CNN features
-        cnn_features = self.cnn(x)
-        cnn_features = cnn_features.view(cnn_features.size(0), -1)
+    def _build_gedi_branch(self, gedi_features):
+        """
+        Build MLP branch for GEDI features
         
-        # ViT features
-        vit_features = self.vit(x).last_hidden_state[:, 0, :]
+        Args:
+            gedi_features (int): Number of GEDI features
+            
+        Returns:
+            Model: MLP model
+        """
+        inputs = layers.Input(shape=(gedi_features,))
         
-        # Enhanced features
-        enhanced = self.enhanced_features(x)
-        enhanced = self.spectral_attention(enhanced)
-        enhanced = enhanced.mean(dim=[2,3])
+        # Dense layers
+        x = layers.Dense(64, activation='relu')(inputs)
+        x = layers.Dropout(0.3)(x)
+        x = layers.Dense(32, activation='relu')(x)
         
-        # Fusion
-        combined = torch.cat([cnn_features, vit_features, enhanced], dim=1)
-        features = self.fusion(combined)
+        return Model(inputs, x)
+    
+    def call(self, inputs):
+        """
+        Forward pass
         
-        # Regression
-        output = self.regressor(features)
+        Args:
+            inputs (tuple): (images, gedi_features)
+            
+        Returns:
+            tensor: Model output
+        """
+        images, gedi_features = inputs
         
-        return output 
+        # Process images
+        image_features = self.image_branch(images)
+        
+        # Process GEDI features
+        gedi_features = self.gedi_branch(gedi_features)
+        
+        # Combine features
+        combined = tf.concat([image_features, gedi_features], axis=1)
+        combined = self.combined_dense(combined)
+        
+        # Output layer
+        output = self.output_layer(combined)
+        
+        return output
+    
+    def build_graph(self, image_shape, gedi_shape):
+        """
+        Build model graph for visualization
+        
+        Args:
+            image_shape (tuple): Shape of input images
+            gedi_shape (tuple): Shape of GEDI features
+            
+        Returns:
+            Model: Model with specified input shapes
+        """
+        image_input = layers.Input(shape=image_shape)
+        gedi_input = layers.Input(shape=gedi_shape)
+        return Model(inputs=[image_input, gedi_input], outputs=self.call([image_input, gedi_input])) 

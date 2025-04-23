@@ -1,0 +1,75 @@
+# Data Configuration
+
+# Paths
+paths:
+  raw_data: "data/raw"
+  processed_data: "data/processed"
+  outputs: "data/outputs"
+  sentinel_dir: "data/raw/sentinel"
+  gedi_dir: "data/raw/gedi"
+  patches_dir: "data/processed/patches"
+  labels_dir: "data/processed/labels"
+  maps_dir: "data/outputs/maps"
+
+# Sentinel-2 Configuration
+sentinel:
+  collection: "COPERNICUS/S2_SR_HARMONIZED"
+  bands: ["B2", "B3", "B4", "B8", "B11", "B12"]
+  vis_params:
+    min: 0
+    max: 3000
+    gamma: 1.5
+  cloud_mask: true
+  patch_size: 16
+  spectral_indices:
+    - name: "NDVI"
+      formula: "(B8 - B4) / (B8 + B4)"
+    - name: "GNDVI"
+      formula: "(B8 - B3) / (B8 + B3)"
+    - name: "NBR"
+      formula: "(B8 - B12) / (B8 + B12)"
+
+# GEDI Configuration
+gedi:
+  collections:
+    l4a: "LARSE/GEDI/GEDI04_A_002_MONTHLY"
+    l2a: "LARSE/GEDI/GEDI02_A_002_MONTHLY"
+    l2b: "LARSE/GEDI/GEDI02_B_002_MONTHLY"
+  features:
+    l4a: ['agbd', 'agbd_se', 'l2_quality_flag', 'sensitivity', 'degrade_flag', 'beam_type']
+    l2a: ['rh100', 'rh95', 'rh75']
+    l2b: ['cover', 'pai']
+  filters:
+    confidence: 0.9
+    quality_flag: 1
+    min_rh100: 10
+    max_slope: 10
+
+# Region of Interest
+region:
+  name: "Acre"
+  bounds:
+    min_lon: -75.0
+    min_lat: -15.0
+    max_lon: -50.0
+    max_lat: 5.0
+
+# Date Range
+date_range:
+  start: "2022-06-01"
+  end: "2022-09-30"
+
+# Data Split
+split:
+  train_ratio: 0.8
+  val_ratio: 0.1
+  test_ratio: 0.1
+  random_seed: 42
+
+# Preprocessing
+preprocessing:
+  normalize: true
+  compute_ndvi: true
+  max_samples: 5000
+  image_size: [224, 224]
+  batch_size: 32 

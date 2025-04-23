@@ -1,0 +1,77 @@
+# Model Configuration
+
+# Vision Transformer Parameters
+vit:
+  patch_size: 16
+  hidden_size: 768
+  num_layers: 12
+  num_heads: 12
+  mlp_dim: 3072
+  dropout_rate: 0.1
+  attention_dropout_rate: 0.0
+  pretrained: true
+  pretrained_weights: "imagenet21k+imagenet2012"
+
+# Spectral Attention Parameters
+spectral_attention:
+  num_bands: 10
+  reduction_ratio: 8
+  dropout_rate: 0.1
+
+# Enhanced Features Parameters
+enhanced_features:
+  num_filters: [64, 128, 256]
+  kernel_size: 3
+  dropout_rate: 0.2
+
+# Training Parameters
+training:
+  optimizer:
+    name: "adamw"
+    learning_rate: 1e-4
+    weight_decay: 0.01
+    beta1: 0.9
+    beta2: 0.999
+    epsilon: 1e-8
+  scheduler:
+    name: "cosine"
+    warmup_epochs: 5
+    min_lr: 1e-6
+  batch_size: 32
+  num_epochs: 50
+  early_stopping:
+    patience: 5
+    min_delta: 0.001
+  mixed_precision: true
+  gradient_clipping: 1.0
+
+# Data Augmentation
+augmentation:
+  random_flip: true
+  random_rotation: true
+  rotation_range: 15
+  brightness_range: [0.8, 1.2]
+  contrast_range: [0.8, 1.2]
+  noise_std: 0.01
+
+# Loss Function
+loss:
+  name: "mse"
+  reduction: "mean"
+  label_smoothing: 0.0
+
+# Metrics
+metrics:
+  - name: "mae"
+  - name: "rmse"
+  - name: "r2"
+  - name: "bias"
+
+# Model Checkpointing
+checkpoint:
+  save_best_only: true
+  monitor: "val_loss"
+  mode: "min"
+  save_freq: "epoch"
+  directory: "checkpoints"
+  filename: "model_{epoch:02d}_{val_loss:.4f}" 
