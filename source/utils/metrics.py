@@ -1,5 +1,6 @@
 import tensorflow as tf
 import numpy as np
+import torch.nn as nn
 from sklearn.metrics import r2_score, mean_squared_error, mean_absolute_error
 
 def rmse(y_true, y_pred):
