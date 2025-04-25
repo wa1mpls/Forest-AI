@@ -1,4 +1,5 @@
 # source/prepare_dataset.py
+
 import os
 import yaml
 import pandas as pd
@@ -7,28 +8,32 @@ from data.preprocessing.gedi_preprocessing import GEDIProcessor
 from data.preprocessing.sentinel_preprocessing import SentinelProcessor
 
 def load_config():
-    config_dir = Path(__file__).resolve().parent / "configs"
-    with open(config_dir / "data_config.yaml") as f:
-        data_config = yaml.safe_load(f)
-    return data_config
+    config_path = Path(__file__).resolve().parent / "configs" / "data_config.yaml"
+    with open(config_path, "r") as f:
+        config = yaml.safe_load(f)
+    return config, str(config_path)
 
 def main():
-    config = load_config()
+    # 🧩 Load config và xác định đúng đường dẫn
+    config, config_path_str = load_config()
 
-    # 1. Xử lý GEDI
-    gedi = GEDIProcessor(config_path="source/configs/data_config.yaml")
+    # 🧩 1. Xử lý GEDI
+    print("🔍 Đang xử lý dữ liệu GEDI...")
+    gedi = GEDIProcessor(config_path=config_path_str)
     gedi_files = list(Path(config["paths"]["gedi_dir"]).glob("*.h5"))
     if not gedi_files:
-        print("⚠️ Không tìm thấy file GEDI trong thư mục raw.")
+        print("⚠️ Không tìm thấy file GEDI (.h5) trong thư mục:", config["paths"]["gedi_dir"])
     else:
         gedi.process_gedi_files([str(f) for f in gedi_files])
 
-    # 2. Xử lý Sentinel
-    sentinel = SentinelProcessor(config_path="source/configs/data_config.yaml")
+    # 🧩 2. Xử lý Sentinel-2
+    print("🛰️ Đang xử lý ảnh Sentinel-2...")
+    sentinel = SentinelProcessor(config_path=config_path_str)
     sentinel.process_collection()
-    sentinel.create_patches(image_path=config["paths"]["sentinel_dir"] + "/sentinel_image.tif")
+    image_path = Path(config["paths"]["sentinel_dir"]) / "sentinel_image.tif"
+    sentinel.create_patches(image_path=str(image_path))
 
-    print("✅ Dataset prepared successfully.")
+    print("✅ Dataset prepared successfully!")
 
 if __name__ == "__main__":
     main()
