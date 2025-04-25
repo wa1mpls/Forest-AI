@@ -68,24 +68,14 @@ def prepare_data(config):
     logger.info("✅ Hoàn tất chuẩn bị dữ liệu!")
     return True
 def initialize_earth_engine():
-    """Khởi tạo Google Earth Engine an toàn từ file credentials"""
-    import os
-    import ee
-
+    """Khởi tạo Earth Engine sử dụng mặc định từ credentials (Colab)"""
     try:
-        # Nếu có file credentials từ bước Authenticate trước đó
-        cred_path = os.path.expanduser('~/.config/earthengine/credentials')
-        if not os.path.exists(cred_path):
-            logger.warning("⚠️ Chưa xác thực GEE. Hãy chạy `ee.Authenticate()` trước.")
-            return
-
-        ee.Initialize(project='ee-ngonguyenthanhthanh00')
+        ee.Initialize()  # ❗ Không cần truyền project nếu đã xác thực
         logger.info("🌍 Earth Engine đã sẵn sàng")
     except Exception as e:
         logger.warning("⚠️ Không thể khởi tạo Earth Engine:")
         logger.warning(str(e))
-        logger.warning("👉 Chạy `ee.Authenticate()` rồi thử lại.")
-
+        logger.warning("👉 Chạy `ee.Authenticate()` trong notebook trước rồi thử lại.")
 
 def run_pipeline(mode, config_path):
     """Chạy toàn bộ pipeline theo mode"""
