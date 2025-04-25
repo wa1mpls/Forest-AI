@@ -39,11 +39,21 @@ training:
     min_lr: 1e-6
   batch_size: 32
   num_epochs: 50
-  early_stopping:
-    patience: 5
-    min_delta: 0.001
   mixed_precision: true
   gradient_clipping: 1.0
+
+  early_stopping:
+    restore_best_weights: true
+    monitor: "val_loss"
+    mode: "min"
+    patience: 5
+    min_delta: 0.001
+    verbose: true
+    check_interval: 1
+    save_best_only: true
+    save_weights_only: true
+    save_dir: "checkpoints/"
+    save_freq: "epoch"
 
 # Data Augmentation
 augmentation:
@@ -74,4 +84,10 @@ checkpoint:
   mode: "min"
   save_freq: "epoch"
   directory: "checkpoints"
-  filename: "model_{epoch:02d}_{val_loss:.4f}" 
+  filename: "model_{epoch:02d}_{val_loss:.4f}"
+
+# Logging
+logging:
+  level: "INFO"
+  log_to_file: true
+  log_dir: "logs/"
