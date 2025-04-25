@@ -182,19 +182,9 @@ def download_amazon_shapefile(config):
         logger.error("Failed to download Amazon forest shapefile")
         return False
 
-def get_sentinel_data(config):
-    """Get Sentinel-2 data from Google Earth Engine"""
-    logger.info("Getting Sentinel-2 data from Google Earth Engine...")
-    
-    # Initialize Earth Engine
-    try:
-        ee.Initialize(project='ee-ngonguyenthanhthanh00')
-    except Exception as e:
-        logger.error("Please authenticate with Google Earth Engine first:")
-        logger.error("1. Go to https://earthengine.google.com/")
-        logger.error("2. Sign in with your Google account")
-        logger.error("3. Run: earthengine authenticate")
-        return None, None
+def get_data(config):
+    """Get Sentinel-2 and GEDI data from Google Earth Engine"""
+    logger.info("Getting data from Google Earth Engine...")
     
     # Define region of interest
     region = ee.Geometry.Rectangle([
@@ -208,77 +198,44 @@ def get_sentinel_data(config):
     start_date = ee.Date(config["date_range"]["start"])
     end_date = ee.Date(config["date_range"]["end"])
     
-    # Get Sentinel-2 collection
-    sentinel = ee.ImageCollection(config["sentinel"]["collection"])
+    # Get Sentinel-2 data
+    sentinel = ee.ImageCollection('COPERNICUS/S2_SR') \
+        .filterBounds(region) \
+        .filterDate(start_date, end_date) \
+        .sort('CLOUD_COVERAGE_ASSESSMENT') \
+        .first()
     
-    # Filter by date and region
-    sentinel = sentinel.filterBounds(region).filterDate(start_date, end_date)
+    # Calculate spectral indices
+    ndvi = sentinel.normalizedDifference(['B8', 'B4']).rename('NDVI')
+    gndvi = sentinel.normalizedDifference(['B8', 'B3']).rename('GNDVI')
+    nbr = sentinel.normalizedDifference(['B8', 'B12']).rename('NBR')
     
-    # Get least cloudy image
-    sentinel = sentinel.sort('CLOUD_COVERAGE_ASSESSMENT').first()
+    # Combine features
+    features = sentinel.select(['B2', 'B3', 'B4', 'B8', 'B11', 'B12']) \
+        .addBands([ndvi, gndvi, nbr])
     
-    # Select bands and QA60
-    bands = config["sentinel"]["bands"] + ["QA60"]
-    sentinel = sentinel.select(bands)
+    # Get GEDI data
+    gedi = ee.ImageCollection('LARSE/GEDI/GEDI04_A_002_MONTHLY') \
+        .filterBounds(region) \
+        .filterDate(start_date, end_date) \
+        .select(['agbd', 'agbd_se', 'l2_quality_flag', 'sensitivity', 'degrade_flag'])
     
-    return sentinel, region
-
-def get_gedi_data(config):
-    """Get GEDI data from Google Earth Engine"""
-    logger.info("Getting GEDI data from Google Earth Engine...")
+    # Filter GEDI data
+    gedi = gedi.filter(ee.Filter.gt('l2_quality_flag', 0)) \
+        .filter(ee.Filter.gt('sensitivity', 0.95)) \
+        .filter(ee.Filter.eq('degrade_flag', 0))
     
-    # Define region of interest
-    region = ee.Geometry.Rectangle([
-        config["region"]["bounds"]["min_lon"],
-        config["region"]["bounds"]["min_lat"],
-        config["region"]["bounds"]["max_lon"],
-        config["region"]["bounds"]["max_lat"]
-    ])
-    
-    # Define date range
-    start_date = ee.Date(config["date_range"]["start"])
-    end_date = ee.Date(config["date_range"]["end"])
-    
-    # Get GEDI collections
-    gedi_l4a = ee.ImageCollection(config["gedi"]["collections"]["l4a"])
-    gedi_l2a = ee.ImageCollection(config["gedi"]["collections"]["l2a"])
-    gedi_l2b = ee.ImageCollection(config["gedi"]["collections"]["l2b"])
-    
-    # Filter by date and region
-    gedi_l4a = gedi_l4a.filterBounds(region).filterDate(start_date, end_date)
-    gedi_l2a = gedi_l2a.filterBounds(region).filterDate(start_date, end_date)
-    gedi_l2b = gedi_l2b.filterBounds(region).filterDate(start_date, end_date)
-    
-    # Select features
-    gedi_l4a = gedi_l4a.select(config["gedi"]["features"]["l4a"])
-    gedi_l2a = gedi_l2a.select(config["gedi"]["features"]["l2a"])
-    gedi_l2b = gedi_l2b.select(config["gedi"]["features"]["l2b"])
-    
-    return gedi_l4a, gedi_l2a, gedi_l2b, region
+    return features, gedi, region
 
 def main():
-    """Main function to get datasets from Google Earth Engine"""
+    """Main function"""
     # Load config
     config = load_config()
     
-    # Download Amazon shapefile
-    if not download_amazon_shapefile(config):
-        logger.error("Failed to download Amazon shapefile")
-        return
+    # Get data
+    features, gedi, region = get_data(config)
     
-    # Get Sentinel-2 data
-    sentinel, region = get_sentinel_data(config)
-    if sentinel is None or region is None:
-        logger.error("Failed to get Sentinel-2 data")
-        return
-    
-    # Get GEDI data
-    gedi_l4a, gedi_l2a, gedi_l2b, region = get_gedi_data(config)
-    if not gedi_l4a or not gedi_l2a or not gedi_l2b:
-        logger.error("Failed to get GEDI data")
-        return
-    
-    logger.info("Successfully retrieved all datasets from Google Earth Engine!")
+    logger.info("Successfully retrieved data from Google Earth Engine!")
 
 if __name__ == "__main__":
     main() 
