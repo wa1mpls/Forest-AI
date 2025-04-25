@@ -60,3 +60,43 @@ FEATURES = {
 # Create directories if they don't exist
 for dir_path in [WORKING_DIR, DATA_DIR, MODEL_DIR, OUTPUT_DIR]:
     os.makedirs(dir_path, exist_ok=True) 
+
+# Training Configuration
+TRAIN_CONFIG = {
+    "optimizer": {
+        "name": "adam",
+        "learning_rate": 1e-4,
+        "beta_1": 0.9,
+        "beta_2": 0.999,
+        "epsilon": 1e-7
+    },
+    "callbacks": {
+        "early_stopping": {
+            "monitor": "val_loss",
+            "patience": 5,
+            "restore_best_weights": True
+        },
+        "reduce_lr": {
+            "monitor": "val_loss",
+            "factor": 0.5,
+            "patience": 3,
+            "min_lr": 1e-6
+        },
+        "model_checkpoint": {
+            "monitor": "val_loss",
+            "save_best_only": True
+        }
+    }
+}
+
+# Evaluation Configuration
+EVAL_CONFIG = {
+    "metrics": ["mae", "mse", "rmse", "r2"],
+    "visualization": {
+        "save_plots": True,
+        "plot_history": True,
+        "plot_predictions": True,
+        "plot_residuals": True,
+        "plot_feature_importance": True
+    }
+}

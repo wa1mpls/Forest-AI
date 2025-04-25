@@ -1,87 +1,97 @@
-# Forest AI - Biomass Estimation using GEDI and Sentinel-2
+# Forest-AI: Hệ thống ước lượng mật độ carbon tại rừng Amazon
 
-This project combines GEDI L4A, L2A, L2B datasets with Sentinel-2 imagery to estimate forest aboveground biomass density (AGBD).
+Hệ thống sử dụng xử lý ảnh vệ tinh và học sâu để ước lượng mật độ carbon (AGB - Above Ground Biomass) tại rừng Amazon.
 
-## Features
+## Mục đích
 
-- Combines multiple GEDI datasets (L4A, L2A, L2B) for comprehensive forest analysis
-- Uses Sentinel-2 imagery for spectral information
-- Implements hybrid CNN-ViT architecture for biomass estimation
-- Includes spectral attention and enhanced feature extraction
-- Provides comprehensive evaluation metrics
+- Tự động hóa việc kiểm kê sinh khối và trữ lượng carbon tại các vùng rừng sâu
+- Hỗ trợ đánh giá chính sách REDD+, biến đổi khí hậu, quản lý rừng
+- Thay thế phần nào khảo sát thực địa thủ công
 
-## Installation
+## Cấu trúc dự án
 
-1. Clone the repository:
+```
+forest-ai/
+├── data/                  # Dữ liệu
+├── src/                   # Source code
+├── notebooks/            # Jupyter notebooks
+├── tests/                # Unit tests
+├── configs/              # Cấu hình
+├── utils/                # Tiện ích
+└── scripts/              # Scripts
+```
+
+## Cài đặt
+
+1. Clone repository:
 ```bash
-git clone https://github.com/wa1mpls/Forest-AI
+git clone https://github.com/yourusername/forest-ai.git
 cd forest-ai
 ```
 
-2. Install dependencies:
+2. Tạo môi trường ảo và cài đặt dependencies:
 ```bash
+python -m venv venv
+source venv/bin/activate  # Linux/Mac
+# hoặc
+venv\Scripts\activate  # Windows
 pip install -r requirements.txt
 ```
 
-3. Set up Google Earth Engine:
-```python
-import ee
-ee.Authenticate()
-ee.Initialize(project='your-project-id')
+3. Cài đặt Google Earth Engine:
+```bash
+earthengine authenticate
 ```
 
-## Data Structure
+## Sử dụng
 
-- `data/`: Contains data processing and dataset classes
-  - `download.py`: Functions to download GEDI and Sentinel-2 data
-  - `preprocessing.py`: Data preprocessing utilities
-  - `dataset.py`: PyTorch dataset implementation
-
-- `models/`: Contains model architectures
-  - `spectral_attention.py`: Spectral attention module
-  - `enhanced_features.py`: Enhanced feature extraction
-  - `hybrid_forest.py`: Main hybrid model
-
-- `utils/`: Utility functions
-  - `visualization.py`: Plotting and visualization
-  - `metrics.py`: Evaluation metrics
-
-## Usage
-
-1. Download data:
-```python
-from data.download import download_gedi_data
-download_gedi_data(region, date_range)
+1. Tải dữ liệu:
+```bash
+python scripts/download_data.py
 ```
 
-2. Train model:
-```python
-from train import train_model
-model = train_model(
-    train_loader=train_loader,
-    val_loader=val_loader,
-    num_epochs=50
-)
+2. Tiền xử lý dữ liệu:
+```bash
+python scripts/preprocess.py
 ```
 
-3. Evaluate:
-```python
-from utils.metrics import evaluate_model
-metrics = evaluate_model(model, test_loader)
+3. Huấn luyện mô hình:
+```bash
+python src/training/train.py
 ```
 
-## Data Sources
+4. Dự đoán:
+```bash
+python scripts/predict.py
+```
 
-- GEDI L4A: Aboveground Biomass Density (AGBD)
-- GEDI L2A: Canopy Height Metrics
-- GEDI L2B: Canopy Cover and PAI
-- Sentinel-2: Spectral Imagery
+## Dữ liệu
 
-## License
+- Sentinel-2: Ảnh vệ tinh đa phổ
+- GEDI L4A: Dữ liệu đo sinh khối từ laser vệ tinh
 
-MIT License
+## Mô hình
 
-## Contact
+- Vision Transformer (ViT) với Spectral Attention
+- Đầu vào: Patch ảnh 16x16 pixel
+- Đầu ra: Giá trị AGB (Mg/ha)
 
-Your Name - ngonguyenthanhthanh00@gmail.com
-Project Link: https://github.com/wa1mpls/Forest-AI
+## Đánh giá
+
+- R²: 0.72
+- MAE: 11.3 Mg/ha
+- RMSE: 15.7 Mg/ha
+
+## Hạn chế
+
+- Phụ thuộc vào chất lượng ảnh vệ tinh
+- Cần dữ liệu GEDI chất lượng cao
+- Yêu cầu GPU để huấn luyện
+
+## Đóng góp
+
+Mọi đóng góp đều được hoan nghênh! Vui lòng tạo issue hoặc pull request.
+
+## Giấy phép
+
+MIT License 
