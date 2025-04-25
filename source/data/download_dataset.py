@@ -20,6 +20,12 @@ from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
+def load_config():
+    """Load configuration from YAML file"""
+    config_path = Path(__file__).resolve().parent.parent / "configs" / "data_config.yaml"
+    with open(config_path) as f:
+        return yaml.safe_load(f)
+
 # CMR API base url
 CMR_URL = "https://cmr.earthdata.nasa.gov/search/"
 AUTH_HOST = "https://urs.earthdata.nasa.gov"
@@ -155,6 +161,27 @@ def create_geojson_from_bounds(bounds):
         "properties": {}
     }
 
+def download_amazon_shapefile(config):
+    """Download Amazon forest shapefile"""
+    logger.info("Downloading Amazon forest shapefile...")
+    
+    shapefile_dir = Path(config["paths"]["shapefile_dir"])
+    shapefile_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Download from Global Forest Watch
+    url = "https://data.globalforestwatch.org/datasets/amazon-forest-cover-2000/geoservice"
+    response = requests.get(url)
+    
+    if response.status_code == 200:
+        # Save shapefile
+        with open(shapefile_dir / "amazon_forest.shp", "wb") as f:
+            f.write(response.content)
+        logger.info("Amazon forest shapefile downloaded successfully")
+        return True
+    else:
+        logger.error("Failed to download Amazon forest shapefile")
+        return False
+
 def download_gedi_data(config):
     """Download GEDI data using NASA CMR API"""
     logger.info("Downloading GEDI data...")
@@ -203,7 +230,7 @@ def download_sentinel_data(config):
     sentinel_dir = Path(config["paths"]["sentinel_dir"])
     sentinel_dir.mkdir(parents=True, exist_ok=True)
     
-    # Sentinel-2 data is available through Google Earth Engine
+    # Initialize Earth Engine
     try:
         ee.Initialize()
     except Exception as e:
@@ -213,7 +240,7 @@ def download_sentinel_data(config):
         logger.error("3. Run: earthengine authenticate")
         return False
     
-    # Download Sentinel-2 data for the specified region and date range
+    # Define region of interest
     region = ee.Geometry.Rectangle([
         config["region"]["bounds"]["min_lon"],
         config["region"]["bounds"]["min_lat"],
@@ -221,18 +248,26 @@ def download_sentinel_data(config):
         config["region"]["bounds"]["max_lat"]
     ])
     
-    date_range = ee.DateRange(
-        config["date_range"]["start"],
-        config["date_range"]["end"]
-    )
+    # Define date range
+    start_date = ee.Date(config["date_range"]["start"])
+    end_date = ee.Date(config["date_range"]["end"])
     
-    # Get Sentinel-2 data
+    # Get Sentinel-2 collection
     sentinel = ee.ImageCollection(config["sentinel"]["collection"])
-    sentinel = sentinel.filterBounds(region).filterDate(date_range)
+    
+    # Filter by date and region
+    sentinel = sentinel.filterBounds(region).filterDate(start_date, end_date)
+    
+    # Get least cloudy image
+    sentinel = sentinel.sort('CLOUD_COVERAGE_ASSESSMENT').first()
+    
+    # Select bands and QA60
+    bands = config["sentinel"]["bands"] + ["QA60"]
+    sentinel = sentinel.select(bands)
     
     # Export to Google Drive
     task = ee.batch.Export.image.toDrive(
-        image=sentinel.select(config["sentinel"]["bands"]),
+        image=sentinel,
         description='Sentinel_Data_Export',
         folder='Sentinel_Data',
         scale=10,
@@ -270,22 +305,22 @@ def main():
     # Load config
     config = load_config()
     
-    # Check dataset availability
-    if check_dataset_availability(config):
-        logger.info("All datasets are already available.")
+    # Download Amazon shapefile
+    if not download_amazon_shapefile(config):
+        logger.error("Failed to download Amazon shapefile")
         return
     
     # Download GEDI data
     if not download_gedi_data(config):
-        logger.error("Failed to download GEDI data.")
+        logger.error("Failed to download GEDI data")
         return
     
     # Download Sentinel-2 data
     if not download_sentinel_data(config):
-        logger.error("Failed to download Sentinel-2 data.")
+        logger.error("Failed to download Sentinel-2 data")
         return
     
-    logger.info("Dataset download complete!")
+    logger.info("All datasets downloaded successfully!")
 
 if __name__ == "__main__":
     main() 
