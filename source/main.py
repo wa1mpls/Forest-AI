@@ -118,17 +118,12 @@ def run_pipeline(mode, config_path):
 def main():
     args = parse_args()
 
-    # Kiểm tra nếu đang chạy trong Colab
-    try:
-        import google.colab
-        IN_COLAB = True
-    except ImportError:
-        IN_COLAB = False
+    # Khởi tạo GEE an toàn
+    initialize_earth_engine()
 
-    if IN_COLAB:
-        initialize_earth_engine()
-
+    # Chạy pipeline
     run_pipeline(args.mode, args.config)
+
 
 if __name__ == "__main__":
     main()
