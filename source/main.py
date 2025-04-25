@@ -1,3 +1,4 @@
+import os
 import argparse
 import yaml
 from pathlib import Path
@@ -69,40 +70,48 @@ def prepare_data(config_path):
     logger.info("Data preparation complete!")
     return True
 
-def run_pipeline(mode, config_path):
-    """Run the selected pipeline mode"""
+def run_pipeline(mode="all", config_path=None):
+    """Run the complete pipeline"""
     logger.info(f"Starting pipeline in {mode} mode")
     
-    # Load config
-    config = load_config(config_path)
-    
-    # Run selected mode
-    if mode == "download" or mode == "all":
+    if mode == "all" or mode == "download":
         logger.info("Downloading datasets...")
-        download_dataset()
+        from data.download_dataset import main as download_main
+        download_main()
     
-    if mode == "prepare" or mode == "all":
+    if mode == "all" or mode == "preprocess":
         logger.info("Preparing data...")
-        prepare_data(config_path)
+        from data.preprocess_data import main as preprocess_main
+        preprocess_main()
     
-    if mode == "train" or mode == "all":
+    if mode == "all" or mode == "train":
         logger.info("Training model...")
-        train_model()
-    
-    if mode == "evaluate" or mode == "all":
-        logger.info("Evaluating model...")
-        evaluate_model()
-    
-    if mode == "inference" or mode == "all":
-        logger.info("Running inference...")
-        run_inference()
-    
-    logger.info("Pipeline complete!")
+        from train import main as train_main
+        train_main()
 
 def main():
     """Main function"""
-    # Parse arguments
-    args = parse_args()
+    parser = argparse.ArgumentParser(description="Forest AI Pipeline")
+    parser.add_argument("--mode", type=str, default="all",
+                      choices=["all", "download", "preprocess", "train"],
+                      help="Pipeline mode to run")
+    parser.add_argument("--config", type=str, default=None,
+                      help="Path to config file")
+    args = parser.parse_args()
+    
+    # Check if running in Colab
+    try:
+        import google.colab
+        IN_COLAB = True
+    except ImportError:
+        IN_COLAB = False
+    
+    if IN_COLAB:
+        # Setup Colab environment
+        from colab_setup import setup_colab
+        if not setup_colab():
+            logger.error("Failed to setup Colab environment")
+            return
     
     # Run pipeline
     run_pipeline(args.mode, args.config)

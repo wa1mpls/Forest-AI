@@ -182,53 +182,9 @@ def download_amazon_shapefile(config):
         logger.error("Failed to download Amazon forest shapefile")
         return False
 
-def download_gedi_data(config):
-    """Download GEDI data using NASA CMR API"""
-    logger.info("Downloading GEDI data...")
-    
-    gedi_dir = Path(config["paths"]["gedi_dir"])
-    gedi_dir.mkdir(parents=True, exist_ok=True)
-    
-    # Check NASA Earthdata credentials
-    username = os.environ.get('EARTHDATA_USERNAME')
-    password = os.environ.get('EARTHDATA_PASSWORD')
-    
-    if not username or not password:
-        logger.error("Please set your NASA Earthdata credentials:")
-        logger.error("1. Go to https://urs.earthdata.nasa.gov/")
-        logger.error("2. Create an account or sign in")
-        logger.error("3. Set environment variables:")
-        logger.error("   export EARTHDATA_USERNAME='your_username'")
-        logger.error("   export EARTHDATA_PASSWORD='your_password'")
-        return False
-    
-    # Create session
-    session = EDLSession().auth_with_creds(username, password)
-    
-    # Create GeoJSON from bounds
-    geojson = create_geojson_from_bounds(config["region"]["bounds"])
-    poly = gpd.GeoDataFrame.from_features([geojson])
-    poly.crs = 'EPSG:4326'
-    
-    # Set temporal range
-    start_date = dt.datetime.strptime(config["date_range"]["start"], DT_FORMAT)
-    end_date = dt.datetime.strptime(config["date_range"]["end"], DT_FORMAT)
-    dt_cmr = '%Y-%m-%dT%H:%M:%SZ'
-    temporal = start_date.strftime(dt_cmr) + ',' + end_date.strftime(dt_cmr)
-    
-    # Download GEDI L4A data
-    doi = "10.3334/ORNLDAAC/2056"  # GEDI L4A V2.1
-    for g in get_granules_names(doi, poly, temporal):
-        download_files(path.join(gedi_dir, g['url'].rsplit('/', 1)[1]), session, **g)
-    
-    return True
-
-def download_sentinel_data(config):
-    """Download Sentinel-2 data"""
-    logger.info("Downloading Sentinel-2 data...")
-    
-    sentinel_dir = Path(config["paths"]["sentinel_dir"])
-    sentinel_dir.mkdir(parents=True, exist_ok=True)
+def get_sentinel_data(config):
+    """Get Sentinel-2 data from Google Earth Engine"""
+    logger.info("Getting Sentinel-2 data from Google Earth Engine...")
     
     # Initialize Earth Engine
     try:
@@ -265,43 +221,43 @@ def download_sentinel_data(config):
     bands = config["sentinel"]["bands"] + ["QA60"]
     sentinel = sentinel.select(bands)
     
-    # Export to Google Drive
-    task = ee.batch.Export.image.toDrive(
-        image=sentinel,
-        description='Sentinel_Data_Export',
-        folder='Sentinel_Data',
-        scale=10,
-        region=region,
-        fileFormat='GeoTIFF'
-    )
-    task.start()
-    
-    logger.info("Sentinel-2 data export started. Please check your Google Drive for the exported data.")
-    return True
+    return sentinel, region
 
-def check_dataset_availability(config):
-    """Check if required datasets are available"""
-    logger.info("Checking dataset availability...")
+def get_gedi_data(config):
+    """Get GEDI data from Google Earth Engine"""
+    logger.info("Getting GEDI data from Google Earth Engine...")
     
-    # Check GEDI data
-    gedi_dir = Path(config["paths"]["gedi_dir"])
-    gedi_files = list(gedi_dir.glob("*.h5"))
-    if not gedi_files:
-        logger.warning("GEDI data not found. Will attempt to download.")
-        return False
+    # Define region of interest
+    region = ee.Geometry.Rectangle([
+        config["region"]["bounds"]["min_lon"],
+        config["region"]["bounds"]["min_lat"],
+        config["region"]["bounds"]["max_lon"],
+        config["region"]["bounds"]["max_lat"]
+    ])
     
-    # Check Sentinel-2 data
-    sentinel_dir = Path(config["paths"]["sentinel_dir"])
-    sentinel_files = list(sentinel_dir.glob("*.tif"))
-    if not sentinel_files:
-        logger.warning("Sentinel-2 data not found. Will attempt to download.")
-        return False
+    # Define date range
+    start_date = ee.Date(config["date_range"]["start"])
+    end_date = ee.Date(config["date_range"]["end"])
     
-    logger.info("All required datasets are available.")
-    return True
+    # Get GEDI collections
+    gedi_l4a = ee.ImageCollection(config["gedi"]["collections"]["l4a"])
+    gedi_l2a = ee.ImageCollection(config["gedi"]["collections"]["l2a"])
+    gedi_l2b = ee.ImageCollection(config["gedi"]["collections"]["l2b"])
+    
+    # Filter by date and region
+    gedi_l4a = gedi_l4a.filterBounds(region).filterDate(start_date, end_date)
+    gedi_l2a = gedi_l2a.filterBounds(region).filterDate(start_date, end_date)
+    gedi_l2b = gedi_l2b.filterBounds(region).filterDate(start_date, end_date)
+    
+    # Select features
+    gedi_l4a = gedi_l4a.select(config["gedi"]["features"]["l4a"])
+    gedi_l2a = gedi_l2a.select(config["gedi"]["features"]["l2a"])
+    gedi_l2b = gedi_l2b.select(config["gedi"]["features"]["l2b"])
+    
+    return gedi_l4a, gedi_l2a, gedi_l2b, region
 
 def main():
-    """Main function to download datasets"""
+    """Main function to get datasets from Google Earth Engine"""
     # Load config
     config = load_config()
     
@@ -310,17 +266,19 @@ def main():
         logger.error("Failed to download Amazon shapefile")
         return
     
-    # Download GEDI data
-    if not download_gedi_data(config):
-        logger.error("Failed to download GEDI data")
+    # Get Sentinel-2 data
+    sentinel, region = get_sentinel_data(config)
+    if not sentinel:
+        logger.error("Failed to get Sentinel-2 data")
         return
     
-    # Download Sentinel-2 data
-    if not download_sentinel_data(config):
-        logger.error("Failed to download Sentinel-2 data")
+    # Get GEDI data
+    gedi_l4a, gedi_l2a, gedi_l2b, region = get_gedi_data(config)
+    if not gedi_l4a or not gedi_l2a or not gedi_l2b:
+        logger.error("Failed to get GEDI data")
         return
     
-    logger.info("All datasets downloaded successfully!")
+    logger.info("Successfully retrieved all datasets from Google Earth Engine!")
 
 if __name__ == "__main__":
     main() 
