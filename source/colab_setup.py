@@ -1,54 +1,54 @@
 import os
 import ee
-import geemap
-from pathlib import Path
 import subprocess
 import sys
 
 def setup_colab():
     """Setup environment for Google Colab"""
-    print("Setting up Google Colab environment...")
-    
-    # Install required packages
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "earthengine-api"])
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "geemap"])
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "rasterio"])
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "geopandas"])
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "h5py"])
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "numpy"])
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "pandas"])
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "tqdm"])
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "pyyaml"])
-    
-    # Create directory structure
-    os.makedirs("data/raw/sentinel", exist_ok=True)
-    os.makedirs("data/raw/gedi", exist_ok=True)
-    os.makedirs("data/raw/shapefiles", exist_ok=True)
-    os.makedirs("data/processed", exist_ok=True)
-    os.makedirs("data/outputs", exist_ok=True)
-    
-    # Authenticate Google Earth Engine
+    print("🔧 Đang thiết lập môi trường Colab...")
+
+    # Cài đặt các thư viện cần thiết nếu chưa có
+    required_packages = [
+        "earthengine-api",
+        "geemap",
+        "rasterio",
+        "geopandas",
+        "h5py",
+        "numpy",
+        "pandas",
+        "tqdm",
+        "pyyaml"
+    ]
+
+    for pkg in required_packages:
+        subprocess.check_call([sys.executable, "-m", "pip", "install", pkg])
+
+    # Tạo các thư mục cần thiết
+    dirs = [
+        "data/raw/sentinel",
+        "data/raw/gedi",
+        "data/raw/shapefiles",
+        "data/processed",
+        "data/outputs"
+    ]
+    for d in dirs:
+        os.makedirs(d, exist_ok=True)
+
+    # Authenticate Earth Engine
     try:
-        # First authenticate
+        print("🔑 Đang xác thực Google Earth Engine...")
         ee.Authenticate()
-        
-        # Then initialize with project ID
-        ee.Initialize(project='ee-ngonguyenthanhthanh00')
-        
-        # Test if authentication worked
-      #  test_image = ee.Image('COPERNICUS/S2_SR/20220101T000000_20220101T000000_T00N')
-       # test_image.getInfo()
-        
-        print("Successfully authenticated with Google Earth Engine!")
+        ee.Initialize()
+        print("✅ Xác thực Earth Engine thành công!")
         return True
     except Exception as e:
-        print("Error authenticating with Google Earth Engine:")
+        print("❌ Lỗi xác thực Earth Engine:")
         print(e)
-        print("\nPlease follow these steps:")
-        print("1. Go to https://earthengine.google.com/")
-        print("2. Sign in with your Google account")
-        print("3. Run: earthengine authenticate")
+        print("👉 Hướng dẫn:")
+        print("1. Truy cập https://earthengine.google.com/")
+        print("2. Đăng nhập bằng tài khoản Google")
+        print("3. Chạy: !earthengine authenticate")
         return False
 
 if __name__ == "__main__":
-    setup_colab() 
+    setup_colab()
