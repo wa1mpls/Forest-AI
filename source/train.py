@@ -100,7 +100,7 @@ def load_datasets():
         df = pd.read_csv(DATA_CONFIG["train_csv"])
         images, labels = [], []
         for i, row in df.iterrows():
-            img_path = os.path.join(DATA_CONFIG["paths"]["processed_data"], "images", f"image_{i}.png")
+            img_path = os.path.join(DATA_CONFIG['paths']['image_folder'], f"image_{i}.png")
             metadata_path = img_path.replace(".png", "_metadata.json")
             if os.path.exists(img_path) and os.path.exists(metadata_path):
                 img = tf.image.decode_png(tf.io.read_file(img_path), channels=3)
@@ -111,9 +111,10 @@ def load_datasets():
         return tf.data.Dataset.from_tensor_slices((images, labels))
 
     return (
-        load_csv(DATA_CONFIG["paths"]["train_csv"]),
-        load_csv(DATA_CONFIG["paths"]["val_csv"]),
-        load_csv(DATA_CONFIG["paths"]["test_csv"])
+        train_dataset = load_csv(DATA_CONFIG['paths']['train_csv'])
+        val_dataset = load_csv(DATA_CONFIG['paths']['val_csv'])
+        test_dataset = load_csv(DATA_CONFIG['paths']['test_csv'])
+
     )
 
 

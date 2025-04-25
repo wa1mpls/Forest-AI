@@ -11,6 +11,11 @@ paths:
   labels_dir: "data/processed/labels"
   maps_dir: "data/outputs/maps"
 
+  train_csv: "data/processed/train.csv"
+  val_csv: "data/processed/val.csv"
+  test_csv: "data/processed/test.csv"
+  image_folder: "data/processed/images"
+
 # Sentinel-2 Configuration
 sentinel:
   collection: "COPERNICUS/S2_SR_HARMONIZED"
@@ -73,7 +78,4 @@ preprocessing:
   max_samples: 5000
   image_size: [224, 224]
   batch_size: 32 
-train_csv: "data/processed/train.csv"
-val_csv: "data/processed/val.csv"
-test_csv: "data/processed/test.csv"
-image_folder: "data/processed/images"
+
