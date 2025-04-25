@@ -8,6 +8,8 @@ def setup_colab():
     print("🔧 Đang thiết lập môi trường Colab...")
 
     # Cài đặt các thư viện cần thiết nếu chưa có
+    ee.Initialize(project='ee-ngonguyenthanhthanh00')  # ✅
+
 
     # Tạo các thư mục cần thiết
     dirs = [
