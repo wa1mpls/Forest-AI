@@ -97,7 +97,7 @@ def train_model(train_dataset, val_dataset):
 # Load datasets from CSV + images
 def load_datasets():
     def load_csv(csv_path):
-        df = pd.read_csv(csv_path)
+        df = pd.read_csv(DATA_CONFIG["train_csv"])
         images, labels = [], []
         for i, row in df.iterrows():
             img_path = os.path.join(DATA_CONFIG["paths"]["processed_data"], "images", f"image_{i}.png")
