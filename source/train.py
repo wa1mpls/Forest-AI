@@ -23,7 +23,6 @@ TRAIN_CONFIG = MODEL_CONFIG["training"]
 IMAGE_SIZE = tuple(DATA_CONFIG["preprocessing"]["image_size"])
 BATCH_SIZE = TRAIN_CONFIG["batch_size"]
 
-
 # Save training loss history
 def save_loss_history(history, filepath='logs/loss_history.csv'):
     os.makedirs(os.path.dirname(filepath), exist_ok=True)
@@ -33,8 +32,7 @@ def save_loss_history(history, filepath='logs/loss_history.csv'):
         for i, (train_loss, val_loss) in enumerate(zip(history.history['loss'], history.history['val_loss'])):
             writer.writerow([i + 1, train_loss, val_loss])
 
-
-# Create training callbacks
+# Callbacks
 def build_callbacks():
     cb_conf = TRAIN_CONFIG.get("early_stopping", {})
     model_ckpt_dir = TRAIN_CONFIG.get("save_dir", "checkpoints/")
@@ -63,8 +61,7 @@ def build_callbacks():
         )
     ]
 
-
-# Build and train model
+# Train model
 def train_model(train_dataset, val_dataset):
     model = HybridForestModel(
         input_shape=TRAIN_CONFIG["input_shape"],
@@ -93,11 +90,10 @@ def train_model(train_dataset, val_dataset):
     plot_training_history(history)
     return model
 
-
-# Load datasets from CSV + images
+# Load dataset from csv + image
 def load_datasets():
     def load_csv(csv_path):
-        df = pd.read_csv(DATA_CONFIG["train_csv"])
+        df = pd.read_csv(csv_path)
         images, labels = [], []
         for i, row in df.iterrows():
             img_path = os.path.join(DATA_CONFIG['paths']['image_folder'], f"image_{i}.png")
@@ -110,14 +106,12 @@ def load_datasets():
                 labels.append(label)
         return tf.data.Dataset.from_tensor_slices((images, labels))
 
-    return (
-        train_dataset = load_csv(DATA_CONFIG['paths']['train_csv'])
-        val_dataset = load_csv(DATA_CONFIG['paths']['val_csv'])
-        test_dataset = load_csv(DATA_CONFIG['paths']['test_csv'])
+    train_dataset = load_csv(DATA_CONFIG['paths']['train_csv'])
+    val_dataset = load_csv(DATA_CONFIG['paths']['val_csv'])
+    test_dataset = load_csv(DATA_CONFIG['paths']['test_csv'])
+    return train_dataset, val_dataset, test_dataset
 
-    )
-
-
+# Run
 if __name__ == "__main__":
     train_dataset, val_dataset, test_dataset = load_datasets()
     model = train_model(train_dataset, val_dataset)
@@ -134,3 +128,4 @@ if __name__ == "__main__":
     metrics = evaluate_model(y_true, y_pred)
     print_metrics(metrics)
     plot_predictions(y_true, y_pred)
+    print("\n✅ Training and evaluation complete.")
