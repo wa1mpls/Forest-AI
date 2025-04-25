@@ -11,6 +11,7 @@ import yaml
 from typing import Dict, List, Tuple
 import logging
 import json
+from utils.logger import get_logger
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -24,13 +25,17 @@ class GEDIProcessor:
         Args:
             config_path: Path to configuration file
         """
-        with open(config_path, 'r') as f:
-            self.config = yaml.safe_load(f)
+        self.config = self._load_config(config_path)
         
         # Set up paths
         self.gedi_dir = Path(self.config['paths']['gedi_dir'])
         self.gedi_dir.mkdir(parents=True, exist_ok=True)
         
+    def _load_config(self, config_path):
+        """Load configuration from YAML file"""
+        with open(config_path, "r") as f:
+            return yaml.safe_load(f)
+    
     def read_gedi_file(self, file_path: str) -> pd.DataFrame:
         """
         Read GEDI L4A HDF5 file
@@ -251,4 +256,147 @@ class GEDIProcessor:
             'rh100': 'mean'
         }).reset_index()
         
-        return result 
+        return result
+
+    def _filter_points(self, df):
+        """Filter GEDI points based on quality criteria"""
+        filters = self.config["gedi"]["filters"]
+        
+        # Apply filters
+        mask = (
+            (df["confidence"] > filters["confidence"]) &
+            (df["quality_flag"] == filters["quality_flag"]) &
+            (df["rh100"] > filters["min_rh100"]) &
+            (df["slope"] < filters["max_slope"])
+        )
+        
+        return df[mask]
+    
+    def _extract_features(self, h5_file, features):
+        """Extract features from GEDI H5 file"""
+        data = {}
+        with h5py.File(h5_file, "r") as f:
+            for feature in features:
+                if feature in f:
+                    data[feature] = f[feature][:]
+        return data
+    
+    def process_gedi_files(self, h5_files):
+        """Process GEDI H5 files"""
+        logger.info("Processing GEDI files...")
+        
+        # Create output directory
+        gedi_dir = Path(self.config["paths"]["gedi_dir"])
+        gedi_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Process each file
+        all_data = []
+        for h5_file in h5_files:
+            try:
+                # Extract L4A features
+                l4a_data = self._extract_features(
+                    h5_file,
+                    self.config["gedi"]["features"]["l4a"]
+                )
+                
+                # Extract L2A features
+                l2a_data = self._extract_features(
+                    h5_file,
+                    self.config["gedi"]["features"]["l2a"]
+                )
+                
+                # Extract L2B features
+                l2b_data = self._extract_features(
+                    h5_file,
+                    self.config["gedi"]["features"]["l2b"]
+                )
+                
+                # Combine data
+                data = {**l4a_data, **l2a_data, **l2b_data}
+                all_data.append(pd.DataFrame(data))
+                
+            except Exception as e:
+                logger.error(f"Error processing {h5_file}: {str(e)}")
+                continue
+        
+        if not all_data:
+            logger.error("No valid data found in GEDI files")
+            return False
+        
+        # Combine all data
+        df = pd.concat(all_data, ignore_index=True)
+        
+        # Filter points
+        df = self._filter_points(df)
+        
+        # Convert to GeoDataFrame
+        gdf = gpd.GeoDataFrame(
+            df,
+            geometry=gpd.points_from_xy(df["lon"], df["lat"]),
+            crs="EPSG:4326"
+        )
+        
+        # Save to CSV
+        output_path = gedi_dir / "gedi_points.csv"
+        gdf.to_csv(output_path, index=False)
+        
+        logger.info(f"Processed {len(gdf)} GEDI points")
+        return True
+    
+    def create_training_dataset(self, sentinel_patches_dir):
+        """Create training dataset by matching GEDI points with Sentinel patches"""
+        logger.info("Creating training dataset...")
+        
+        # Load GEDI points
+        gedi_dir = Path(self.config["paths"]["gedi_dir"])
+        gdf = gpd.read_file(gedi_dir / "gedi_points.csv")
+        
+        # Load Sentinel patches
+        patches_dir = Path(sentinel_patches_dir)
+        patch_files = list(patches_dir.glob("*.npy"))
+        
+        # Create training data
+        X_train = []
+        y_train = []
+        
+        for patch_file in patch_files:
+            # Load patch
+            patch = np.load(patch_file)
+            
+            # Get patch coordinates from filename
+            i, j = map(int, patch_file.stem.split("_")[1:])
+            
+            # Find GEDI points in this patch
+            patch_bounds = [
+                (i * self.config["sentinel"]["patch_size"], j * self.config["sentinel"]["patch_size"]),
+                ((i + 1) * self.config["sentinel"]["patch_size"], (j + 1) * self.config["sentinel"]["patch_size"])
+            ]
+            
+            points_in_patch = gdf[
+                (gdf["lon"] >= patch_bounds[0][0]) &
+                (gdf["lon"] < patch_bounds[1][0]) &
+                (gdf["lat"] >= patch_bounds[0][1]) &
+                (gdf["lat"] < patch_bounds[1][1])
+            ]
+            
+            if len(points_in_patch) > 0:
+                # Calculate average AGB for this patch
+                avg_agb = points_in_patch["agbd"].mean()
+                
+                # Add to training data
+                X_train.append(patch)
+                y_train.append(avg_agb)
+        
+        # Convert to numpy arrays
+        X_train = np.array(X_train)
+        y_train = np.array(y_train)
+        
+        # Save training data
+        output_dir = Path(self.config["paths"]["processed_data"])
+        output_dir.mkdir(parents=True, exist_ok=True)
+        
+        np.save(output_dir / "X_train.npy", X_train)
+        np.save(output_dir / "y_train.npy", y_train)
+        
+        logger.info(f"Created training dataset with {len(X_train)} samples")
+        return True 

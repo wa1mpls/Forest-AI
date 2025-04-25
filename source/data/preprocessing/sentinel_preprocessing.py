@@ -1,206 +1,144 @@
 import ee
+import geemap
 import numpy as np
 import rasterio
-from rasterio.transform import from_origin
-import os
 from pathlib import Path
-import yaml
-from typing import Tuple, Dict, List
-import logging
-import json
+from utils.logger import get_logger
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 class SentinelProcessor:
-    def __init__(self, config_path: str = "configs/data_config.yaml"):
-        """
-        Initialize Sentinel-2 processor
+    def __init__(self, config_path):
+        """Initialize Sentinel-2 processor"""
+        self.config = self._load_config(config_path)
+        self.ee = ee
         
-        Args:
-            config_path: Path to configuration file
-        """
-        with open(config_path, 'r') as f:
-            self.config = yaml.safe_load(f)
+    def _load_config(self, config_path):
+        """Load configuration from YAML file"""
+        import yaml
+        with open(config_path, "r") as f:
+            return yaml.safe_load(f)
+    
+    def _calculate_spectral_indices(self, image):
+        """Calculate spectral indices (NDVI, GNDVI, NBR)"""
+        for idx in self.config["sentinel"]["spectral_indices"]:
+            formula = idx["formula"]
+            # Replace band names with actual band values
+            for band in ["B2", "B3", "B4", "B8", "B11", "B12"]:
+                formula = formula.replace(band, f"image.select('{band}')")
+            # Calculate index
+            index = ee.Image(eval(formula))
+            image = image.addBands(index.rename(idx["name"]))
+        return image
+    
+    def _apply_cloud_mask(self, image):
+        """Apply cloud mask using QA60 band"""
+        if self.config["sentinel"]["cloud_mask"]:
+            try:
+                qa = image.select('QA60')
+                cloud_mask = qa.bitwiseAnd(1 << 10).eq(0)  # Cloud mask
+                shadow_mask = qa.bitwiseAnd(1 << 11).eq(0)  # Shadow mask
+                return image.updateMask(cloud_mask).updateMask(shadow_mask)
+            except Exception as e:
+                logger.warning(f"Could not apply cloud mask: {str(e)}")
+                return image
+        return image
+    
+    def process_collection(self):
+        """Process Sentinel-2 collection"""
+        logger.info("Processing Sentinel-2 collection...")
         
         # Initialize Earth Engine
         try:
             ee.Initialize()
         except Exception as e:
-            logger.error("Failed to initialize Earth Engine. Please authenticate first.")
-            raise e
+            logger.error("Please authenticate with Google Earth Engine first:")
+            logger.error("1. Go to https://earthengine.google.com/")
+            logger.error("2. Sign in with your Google account")
+            logger.error("3. Run: earthengine authenticate")
+            return False
         
-        # Set up paths
-        self.sentinel_dir = Path(self.config['paths']['sentinel_dir'])
-        self.sentinel_dir.mkdir(parents=True, exist_ok=True)
-        
-    def get_sentinel_collection(self) -> ee.ImageCollection:
-        """
-        Get Sentinel-2 image collection for the specified region and date range
-        
-        Returns:
-            ee.ImageCollection: Filtered Sentinel-2 collection
-        """
-        # Get region and date range from config
+        # Define region of interest
         region = ee.Geometry.Rectangle([
-            self.config['region']['bounds']['min_lon'],
-            self.config['region']['bounds']['min_lat'],
-            self.config['region']['bounds']['max_lon'],
-            self.config['region']['bounds']['max_lat']
+            self.config["region"]["bounds"]["min_lon"],
+            self.config["region"]["bounds"]["min_lat"],
+            self.config["region"]["bounds"]["max_lon"],
+            self.config["region"]["bounds"]["max_lat"]
         ])
         
-        date_range = (
-            self.config['date_range']['start'],
-            self.config['date_range']['end']
+        # Define date range
+        date_range = ee.DateRange(
+            self.config["date_range"]["start"],
+            self.config["date_range"]["end"]
         )
         
         # Get Sentinel-2 collection
-        collection = ee.ImageCollection(self.config['sentinel']['collection'])\
-            .filterBounds(region)\
-            .filterDate(*date_range)\
-            .select(self.config['sentinel']['bands'])
+        sentinel = ee.ImageCollection(self.config["sentinel"]["collection"])
+        sentinel = sentinel.filterBounds(region).filterDate(date_range)
         
-        return collection
-    
-    def apply_cloud_mask(self, image: ee.Image) -> ee.Image:
-        """
-        Apply cloud mask to Sentinel-2 image
-        
-        Args:
-            image: Sentinel-2 image
-            
-        Returns:
-            ee.Image: Masked image
-        """
-        # Get QA60 band for cloud mask
-        qa = image.select('QA60')
-        
-        # Create cloud mask
-        cloud_mask = qa.bitwiseAnd(1 << 10).eq(0)
-        cirrus_mask = qa.bitwiseAnd(1 << 11).eq(0)
-        
-        # Apply masks
-        masked_image = image.updateMask(cloud_mask).updateMask(cirrus_mask)
-        
-        return masked_image
-    
-    def calculate_spectral_indices(self, image: ee.Image) -> ee.Image:
-        """
-        Calculate spectral indices for Sentinel-2 image
-        
-        Args:
-            image: Sentinel-2 image
-            
-        Returns:
-            ee.Image: Image with added spectral indices
-        """
-        for index in self.config['sentinel']['spectral_indices']:
-            formula = index['formula']
-            name = index['name']
-            
-            # Replace band names with actual band values
-            for band in self.config['sentinel']['bands']:
-                formula = formula.replace(band, f'image.select("{band}")')
-            
-            # Calculate index
-            index_value = eval(formula)
-            image = image.addBands(index_value.rename(name))
-        
-        return image
-    
-    def download_image(self, image: ee.Image, filename: str) -> None:
-        """
-        Download Sentinel-2 image to local storage
-        
-        Args:
-            image: Sentinel-2 image
-            filename: Output filename
-        """
-        # Get region
-        region = ee.Geometry.Rectangle([
-            self.config['region']['bounds']['min_lon'],
-            self.config['region']['bounds']['min_lat'],
-            self.config['region']['bounds']['max_lon'],
-            self.config['region']['bounds']['max_lat']
-        ])
-        
-        # Get download URL
-        url = image.getDownloadURL({
-            'scale': 10,  # 10m resolution
-            'region': region,
-            'format': 'GEO_TIFF'
-        })
-        
-        # Download image
-        output_path = self.sentinel_dir / filename
-        os.system(f'curl -o {output_path} "{url}"')
-        
-    def process_collection(self) -> None:
-        """
-        Process entire Sentinel-2 collection
-        """
-        # Get collection
-        collection = self.get_sentinel_collection()
-        
-        # Get least cloudy image
-        image = collection.sort('CLOUD_COVER').first()
-        
-        # Apply cloud mask if enabled
-        if self.config['sentinel']['cloud_mask']:
-            image = self.apply_cloud_mask(image)
+        # Select bands
+        sentinel = sentinel.select(self.config["sentinel"]["bands"])
         
         # Calculate spectral indices
-        image = self.calculate_spectral_indices(image)
+        sentinel = sentinel.map(self._calculate_spectral_indices)
         
-        # Download image
-        self.download_image(image, 'sentinel_image.tif')
+        # Apply cloud mask
+        sentinel = sentinel.map(self._apply_cloud_mask)
         
-        logger.info("Sentinel-2 processing completed successfully")
+        # Get least cloudy image
+        sentinel = sentinel.sort('CLOUD_COVER').first()
+        
+        # Export to Google Drive
+        task = ee.batch.Export.image.toDrive(
+            image=sentinel,
+            description='Sentinel_Processed',
+            folder='Sentinel_Data',
+            scale=10,
+            region=region,
+            fileFormat='GeoTIFF'
+        )
+        task.start()
+        
+        logger.info("Sentinel-2 processing complete. Please check your Google Drive for the exported data.")
+        return True
     
-    def create_patches(self, image_path: str, patch_size: int = None) -> None:
-        """
-        Create patches from Sentinel-2 image
-        
-        Args:
-            image_path: Path to Sentinel-2 image
-            patch_size: Size of patches (default from config)
-        """
-        if patch_size is None:
-            patch_size = self.config['sentinel']['patch_size']
+    def create_patches(self, image_path):
+        """Create patches from Sentinel-2 image"""
+        logger.info("Creating patches from Sentinel-2 image...")
         
         # Read image
         with rasterio.open(image_path) as src:
             image = src.read()
             transform = src.transform
-            
-        # Get image dimensions
-        height, width = image.shape[1:]
+        
+        # Get patch size from config
+        patch_size = self.config["sentinel"]["patch_size"]
+        
+        # Check image dimensions
+        if image.shape[1] < patch_size or image.shape[2] < patch_size:
+            logger.error(f"Image dimensions {image.shape[1:]} are smaller than patch size {patch_size}")
+            return False
         
         # Create patches
         patches = []
-        for i in range(0, height, patch_size):
-            for j in range(0, width, patch_size):
-                # Get patch
+        for i in range(0, image.shape[1] - patch_size + 1, patch_size):
+            for j in range(0, image.shape[2] - patch_size + 1, patch_size):
                 patch = image[:, i:i+patch_size, j:j+patch_size]
                 
-                # Skip if patch is incomplete
+                # Check patch dimensions
                 if patch.shape[1:] != (patch_size, patch_size):
+                    logger.warning(f"Skipping incomplete patch at ({i}, {j})")
                     continue
                 
-                # Save patch
-                patch_path = self.sentinel_dir / 'patches' / f'patch_{i}_{j}.npy'
-                np.save(patch_path, patch)
-                
-                patches.append({
-                    'path': str(patch_path),
-                    'coordinates': (i, j),
-                    'transform': transform * rasterio.Affine.translation(j, i)
-                })
+                patches.append(patch)
         
-        # Save patch metadata
-        metadata_path = self.sentinel_dir / 'patches' / 'metadata.json'
-        with open(metadata_path, 'w') as f:
-            json.dump(patches, f)
+        # Save patches
+        patches_dir = Path(self.config["paths"]["patches_dir"])
+        patches_dir.mkdir(parents=True, exist_ok=True)
         
-        logger.info(f"Created {len(patches)} patches from Sentinel-2 image") 
+        for i, patch in enumerate(patches):
+            patch_path = patches_dir / f"patch_{i}.npy"
+            np.save(patch_path, patch)
+        
+        logger.info(f"Created {len(patches)} patches")
+        return True 

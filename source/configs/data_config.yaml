@@ -52,17 +52,17 @@ gedi:
 
 # Region of Interest
 region:
-  name: "Acre"
+  name: "Vietnam"
   bounds:
-    min_lon: -75.0
-    min_lat: -15.0
-    max_lon: -50.0
-    max_lat: 5.0
+    min_lon: 102.0  # Tây Bắc
+    min_lat: 8.0    # Tây Bắc
+    max_lon: 110.0  # Đông Nam
+    max_lat: 23.0   # Đông Nam
 
 # Date Range
 date_range:
-  start: "2022-06-01"
-  end: "2022-09-30"
+  start: "2023-01-01"  # Bắt đầu từ đầu năm 2023
+  end: "2023-12-31"    # Kết thúc cuối năm 2023
 
 # Data Split
 split:
