@@ -27,9 +27,6 @@ def setup_colab():
     os.makedirs("data/processed", exist_ok=True)
     os.makedirs("data/outputs", exist_ok=True)
     
-    # Set Google Cloud project ID
-    os.environ['GOOGLE_CLOUD_PROJECT'] = 'ee-ngonguyenthanhthanh00'
-    
     # Authenticate Google Earth Engine
     try:
         # First authenticate
@@ -37,10 +34,6 @@ def setup_colab():
         
         # Then initialize
         ee.Initialize()
-        
-        # Test if authentication worked
-        test_image = ee.Image('COPERNICUS/S2_SR/20220101T000000_20220101T000000_T00N')
-        test_image.getInfo()
         
         print("Successfully authenticated with Google Earth Engine!")
         return True
@@ -51,11 +44,6 @@ def setup_colab():
         print("1. Go to https://earthengine.google.com/")
         print("2. Sign in with your Google account")
         print("3. Run: earthengine authenticate")
-        print("4. Make sure you have access to the following collections:")
-        print("   - COPERNICUS/S2_SR")
-        print("   - LARSE/GEDI/GEDI04_A_002_MONTHLY")
-        print("   - LARSE/GEDI/GEDI02_A_002_MONTHLY")
-        print("   - LARSE/GEDI/GEDI02_B_002_MONTHLY")
         return False
 
 if __name__ == "__main__":
