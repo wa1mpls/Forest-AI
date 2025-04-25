@@ -188,13 +188,13 @@ def get_sentinel_data(config):
     
     # Initialize Earth Engine
     try:
-        ee.Initialize()
+        ee.Initialize(project='ee-ngonguyenthanhthanh00')
     except Exception as e:
         logger.error("Please authenticate with Google Earth Engine first:")
         logger.error("1. Go to https://earthengine.google.com/")
         logger.error("2. Sign in with your Google account")
         logger.error("3. Run: earthengine authenticate")
-        return False
+        return None, None
     
     # Define region of interest
     region = ee.Geometry.Rectangle([
@@ -268,7 +268,7 @@ def main():
     
     # Get Sentinel-2 data
     sentinel, region = get_sentinel_data(config)
-    if not sentinel:
+    if sentinel is None or region is None:
         logger.error("Failed to get Sentinel-2 data")
         return
     

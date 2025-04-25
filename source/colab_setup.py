@@ -29,15 +29,26 @@ def setup_colab():
     
     # Authenticate Google Earth Engine
     try:
+        # First authenticate
         ee.Authenticate()
+        
+        # Then initialize with project
         ee.Initialize(project='ee-ngonguyenthanhthanh00')
+        
+        # Test if authentication worked
+        test_image = ee.Image('COPERNICUS/S2_SR_HARMONIZED/20220101T000000_20220101T000000_T00N')
+        test_image.getInfo()
+        
         print("Successfully authenticated with Google Earth Engine!")
+        return True
     except Exception as e:
         print("Error authenticating with Google Earth Engine:")
         print(e)
+        print("\nPlease follow these steps:")
+        print("1. Go to https://earthengine.google.com/")
+        print("2. Sign in with your Google account")
+        print("3. Run: earthengine authenticate")
         return False
-    
-    return True
 
 if __name__ == "__main__":
     setup_colab() 
