@@ -1,7 +1,7 @@
 import unittest
 import tensorflow as tf
 import numpy as np
-from models.hybrid_forest import HybridForestModel
+from source.models.hybrid_forest_model import HybridForestModel
 
 class TestHybridForestModelTF(unittest.TestCase):
     def setUp(self):
